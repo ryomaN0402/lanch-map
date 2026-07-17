@@ -18,12 +18,16 @@
      ★ 設定はここだけ ★
      1) CSV_URL … Googleスプレッドシートを「ウェブに公開(CSV)」したURL
      2) FORM_URL … 「お店を追加」ボタンから開くGoogleフォームのURL
-     どちらも下の手順で取得して貼り付けてください。
-     空のままだと、下のサンプルデータで表示されます（動作確認用）。
+     3) SITE_SHA256 … 閲覧パスワードのSHA-256ハッシュ（空なら誰でも閲覧可）
+        設定方法: このページを開いて F12 → Console で makeHash("好きなパス") を実行し、
+        表示された64文字をここに貼り付ける。
+        ※注意: これはJS側の簡易ゲートです。ログインは求められ、パスワードは
+          漏れませんが、地図データ自体はソース/開発者ツールからは見えます。
      ========================================================= -->
 <script>
-const CSV_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vThmZqweEfqFTZs0Z8FrEpcfTxObjpxdoLdWq77mnuU-MkCUvDYOq77DQnb7zbl2f-GhAMSpNHOOhRp/pub?gid=1883553897&single=true&output=csv";   // 例: https://docs.google.com/spreadsheets/d/e/XXXX/pub?gid=0&single=true&output=csv
-const FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSe-X8p2z_JgBws5-YAcp_zOEeCfD1zAx85aeiQIjJf-IRwSIQ/viewform";   // 例: https://forms.gle/XXXXXXXX
+const CSV_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vThmZqweEfqFTZs0Z8FrEpcfTxObjpxdoLdWq77mnuU-MkCUvDYOq77DQnb7zbl2f-GhAMSpNHOOhRp/pub?gid=1883553897&single=true&output=csv";
+const FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSe-X8p2z_JgBws5-YAcp_zOEeCfD1zAx85aeiQIjJf-IRwSIQ/viewform";
+const SITE_SHA256 = "";  // 空=誰でも閲覧可 / makeHash("パス")で作った値を入れると閲覧ロック
 
 // ジャンルの色（ここに無いジャンルは自動で色が割り当てられます）
 const GENRE_COLORS = {
@@ -120,6 +124,18 @@ const SAMPLE_PLACES = [
   .pop-name{ font-family:"Zen Maru Gothic",sans-serif; font-weight:700; font-size:15px; }
   .pop-meta{ font-size:12px; color:var(--muted); margin-top:3px; }
 
+  /* ログイン画面（全面をおおう） */
+  .login{ position:fixed; inset:0; background:var(--paper); display:flex; align-items:center; justify-content:center; padding:20px; z-index:2000; }
+  .login[hidden]{ display:none; }
+  .login-box{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:26px 24px; width:100%; max-width:340px; box-shadow:0 14px 44px rgba(42,38,33,.14); text-align:center; }
+  .login-brand{ display:flex; align-items:center; justify-content:center; gap:9px; margin-bottom:4px; }
+  .login-brand h1{ font-size:19px; font-weight:700; }
+  .login-desc{ font-size:13px; color:var(--muted); margin:6px 0 16px; }
+  #pw{ width:100%; font:inherit; padding:11px 13px; border:1px solid var(--line); border-radius:10px; background:var(--paper); outline:none; text-align:center; }
+  #pw:focus{ border-color:var(--accent); }
+  .pw-err{ color:#B23A48; font-size:13px; margin-top:8px; }
+  .pw-err[hidden]{ display:none; }
+
   @media (max-width:820px){
     .seg{ display:flex; }
     #list{ flex:1 1 auto; border-right:0; }
@@ -132,6 +148,22 @@ const SAMPLE_PLACES = [
 </style>
 </head>
 <body class="view-list">
+
+<div id="login" class="login" hidden>
+  <div class="login-box">
+    <div class="login-brand">
+      <svg width="26" height="26" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <path d="M5 15h22a11 11 0 0 1-22 0Z" fill="#F2B441"/><path d="M3 15h26" stroke="#2A2621" stroke-width="1.6" stroke-linecap="round"/>
+        <path d="M13 8.5c0-1.5 1-2.5 1-3.5M16 8c0-1.7 1-2.7 1-4M19 8.5c0-1.3 .9-2.2 .9-3.3" stroke="#B23A48" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <h1>神谷町グルメマップ</h1>
+    </div>
+    <p class="login-desc">閲覧にはパスワードが必要です</p>
+    <input id="pw" type="password" placeholder="パスワード" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" />
+    <div id="pwErr" class="pw-err" hidden>パスワードが違います。</div>
+    <button class="btn primary" id="pwOk" style="width:100%; justify-content:center; margin-top:12px;">開く</button>
+  </div>
+</div>
 
 <header>
   <div class="bar">
@@ -183,6 +215,7 @@ const SAMPLE_PLACES = [
   let markers = [];
   let activeGenres = new Set();
   let selected = -1;
+  let map;
 
   // ジャンル→色（未登録は文字から自動で割り当て）
   function colorOf(g){
@@ -191,18 +224,42 @@ const SAMPLE_PLACES = [
     return PALETTE[h % PALETTE.length];
   }
 
-  // 地図（先に用意しておく）
-  const map = L.map('map', { zoomControl:true }).setView([35.681, 139.767], 14);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-  }).addTo(map);
+  // ハッシュ計算（ログイン照合＆makeHash用）
+  async function sha256(str){
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+  window.makeHash = async code => { const h = await sha256(code); console.log(h); return h; };
 
-  // ボタン配線
-  $('#reloadBtn').onclick = () => location.reload();
-  if (FORM_URL){ const a=$('#addBtn'); a.href=FORM_URL; a.style.display='inline-flex'; }
+  // ---- ログイン ----
+  const login = $('#login');
+  async function tryLogin(){
+    const h = await sha256($('#pw').value.trim());
+    if (h === SITE_SHA256){ login.hidden = true; boot(); }
+    else { $('#pwErr').hidden = false; $('#pw').select(); }
+  }
+  if (!SITE_SHA256){ boot(); }  // パス未設定なら誰でも閲覧可
+  else {
+    login.hidden = false;
+    $('#pwOk').onclick = tryLogin;
+    $('#pw').addEventListener('keydown', e => { if(e.key==='Enter') tryLogin(); });
+    $('#pw').focus();
+  }
 
-  // ---- データ取得 ----
-  (async function boot(){
+  // ---- 本体起動（ログイン後 or パス未設定時）----
+  async function boot(){
+    map = L.map('map', { zoomControl:true }).setView([35.681, 139.767], 14);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom:20, subdomains:'abcd',
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    }).addTo(map);
+
+    $('#reloadBtn').onclick = () => location.reload();
+    if (FORM_URL){ const a=$('#addBtn'); a.href=FORM_URL; a.style.display='inline-flex'; }
+    $('#q').addEventListener('input', render);
+    $('#segList').onclick = showList;
+    $('#segMap').onclick  = showMap;
+
     try {
       const data = CSV_URL ? await loadFromCSV(CSV_URL) : SAMPLE_PLACES.slice();
       init(data);
@@ -211,7 +268,7 @@ const SAMPLE_PLACES = [
       $('#cards').innerHTML =
         '<div class="empty">データを読み込めませんでした。<br>スプレッドシートの「ウェブに公開(CSV)」設定とURLを確認してください。</div>';
     }
-  })();
+  }
 
   async function loadFromCSV(url){
     const res = await fetch(url + (url.includes('?')?'&':'?') + '_=' + Date.now());
@@ -351,10 +408,7 @@ const SAMPLE_PLACES = [
   function showMap(){ document.body.classList.add('view-map'); document.body.classList.remove('view-list');
     $('#segMap').setAttribute('aria-pressed','true'); $('#segList').setAttribute('aria-pressed','false');
     setTimeout(() => map.invalidateSize(), 60); }
-  $('#segList').onclick = showList;
-  $('#segMap').onclick  = showMap;
 
-  $('#q').addEventListener('input', render);
   function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 </script>
 </body>
