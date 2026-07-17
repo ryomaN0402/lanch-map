@@ -274,12 +274,19 @@ const SAMPLE_PLACES = [
 
   // ---- ログイン ----
   const login = $('#login');
+  const AUTH_KEY = 'lunchmap_auth_ok'; // タブを閉じるまで有効（sessionStorage）
   async function tryLogin(){
     const h = await sha256($('#pw').value.trim());
-    if (h === SITE_SHA256){ login.hidden = true; boot(); }
-    else { $('#pwErr').hidden = false; $('#pw').select(); }
+    if (h === SITE_SHA256){
+      login.hidden = true;
+      try { sessionStorage.setItem(AUTH_KEY, '1'); } catch(e){ /* プレビュー等で使えない環境は無視 */ }
+      boot();
+    } else { $('#pwErr').hidden = false; $('#pw').select(); }
   }
-  if (!SITE_SHA256){ boot(); }  // パス未設定なら誰でも閲覧可
+  let alreadyAuthed = false;
+  try { alreadyAuthed = sessionStorage.getItem(AUTH_KEY) === '1'; } catch(e){ /* 無視 */ }
+
+  if (!SITE_SHA256 || alreadyAuthed){ boot(); }  // パス未設定 or 同タブ内で認証済みなら再入力不要
   else {
     login.hidden = false;
     $('#pwOk').onclick = tryLogin;
