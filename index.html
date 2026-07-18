@@ -111,7 +111,7 @@ const SAMPLE_PLACES = [
   .tour-ring{ position:absolute; border:3px solid var(--accent); border-radius:12px;
     box-shadow:0 0 0 4000px rgba(42,38,33,.55), 0 0 0 6px rgba(242,180,65,.35);
     transition:top .25s, left .25s, width .25s, height .25s; pointer-events:none; }
-  .tour-tip{ position:absolute; max-width:280px; background:var(--panel); border-radius:14px; padding:16px;
+  .tour-tip{ position:absolute; width:280px; max-width:calc(100vw - 24px); background:var(--panel); border-radius:14px; padding:16px;
     box-shadow:0 14px 40px rgba(42,38,33,.3); pointer-events:auto; transition:top .25s, left .25s; }
   .tour-tip .tour-step{ font-size:11px; color:var(--muted); font-weight:700; letter-spacing:.05em; }
   .tour-tip p{ font-size:13.5px; line-height:1.6; margin:6px 0 12px; }
@@ -187,7 +187,26 @@ const SAMPLE_PLACES = [
     .controls{ row-gap:10px; }
     .sortbox{ width:100%; }
     .sortbox select{ flex:1; }
+    .rating-filter{ width:100%; justify-content:space-between; }
+    .rating-filter button{ font-size:19px; padding:4px 3px; }
+
+    header{ padding:12px 14px 8px; }
+    .bar{ flex-wrap:wrap; row-gap:8px; }
+    .brand h1{ font-size:18px; }
+    .actions{ width:100%; justify-content:flex-end; }
+    .btn{ padding:9px 12px; }
+    .add-full{ display:none; }
+    .add-short{ display:inline; }
+
+    .card{ padding:13px 14px; }
+    .card h3{ font-size:15.5px; }
+    #q, #pw{ font-size:16px; }
   }
+  @media (max-width:380px){
+    .brand h1{ font-size:16.5px; }
+    .btn{ padding:8px 10px; font-size:12.5px; }
+  }
+  .add-short{ display:none; }
   @media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
 </style>
 </head>
@@ -220,13 +239,15 @@ const SAMPLE_PLACES = [
       </svg>
       <div>
         <h1>神谷町グルメマップ</h1>
-        <div class="sub">神谷町周辺の行ったことあるお店マップ。是非参考に！（評価は完全に独断と偏見です）</div>
+        <div class="sub">お昼どこ行く？ 地図と一覧でさっと決める</div>
       </div>
     </div>
     <div class="actions">
       <button class="btn" id="tourBtn" title="使い方を見る">使い方</button>
       <button class="btn" id="reloadBtn" title="最新の情報に更新">更新</button>
-      <a class="btn primary" id="addBtn" href="#" target="_blank" rel="noopener" style="display:none">＋ お店を追加</a>
+      <a class="btn primary" id="addBtn" href="#" target="_blank" rel="noopener" style="display:none">
+        <span class="add-full">＋ お店を追加</span><span class="add-short">＋ 追加</span>
+      </a>
     </div>
   </div>
 
@@ -578,7 +599,7 @@ const SAMPLE_PLACES = [
     $('#tourText').textContent = step.text;
 
     // 吹き出しの位置：下に置けなければ上に置く。横は画面内に収める
-    const tipW = 280;
+    const tipW = Math.min(280, window.innerWidth - 24);
     let top = ringTop + ringH + 12;
     const spaceBelow = window.innerHeight - top;
     if (spaceBelow < 160){ top = Math.max(ringTop - 150, 8); }
