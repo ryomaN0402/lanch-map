@@ -195,8 +195,6 @@ const SAMPLE_PLACES = [
     .brand h1{ font-size:18px; }
     .actions{ width:100%; justify-content:flex-end; }
     .btn{ padding:9px 12px; }
-    .add-full{ display:none; }
-    .add-short{ display:inline; }
 
     .card{ padding:13px 14px; }
     .card h3{ font-size:15.5px; }
@@ -206,7 +204,6 @@ const SAMPLE_PLACES = [
     .brand h1{ font-size:16.5px; }
     .btn{ padding:8px 10px; font-size:12.5px; }
   }
-  .add-short{ display:none; }
   @media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
 </style>
 </head>
@@ -239,15 +236,13 @@ const SAMPLE_PLACES = [
       </svg>
       <div>
         <h1>神谷町グルメマップ</h1>
-        <div class="sub">お昼どこ行く？ 地図と一覧でさっと決める</div>
+        <div class="sub">お昼どこ行く？ 地図と一覧でさっと決める。※評価は独断と偏見が入ってます。</div>
       </div>
     </div>
     <div class="actions">
       <button class="btn" id="tourBtn" title="使い方を見る">使い方</button>
       <button class="btn" id="reloadBtn" title="最新の情報に更新">更新</button>
-      <a class="btn primary" id="addBtn" href="#" target="_blank" rel="noopener" style="display:none">
-        <span class="add-full">＋ お店を追加</span><span class="add-short">＋ 追加</span>
-      </a>
+      <a class="btn primary" id="addBtn" href="#" target="_blank" rel="noopener" style="display:none">＋ お店を追加</a>
     </div>
   </div>
 
