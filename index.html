@@ -534,7 +534,7 @@ const SAMPLE_PLACES = [
         '</div>'+
         (p.dish?'<div class="dish"><span class="field-label">おすすめ：</span>'+esc(p.dish)+'</div>':'')+
         (p.memo?'<div class="memo"><span class="field-label">コメント：</span>'+esc(p.memo)+'</div>':'')+
-        (p.url?'<div class="card-foot"><a href="'+esc(p.url)+'" target="_blank" rel="noopener">リンク ↗</a></div>':'');
+        (p.url?'<div class="card-foot"><a href="'+esc(p.url)+'" target="_blank" rel="noopener">Google Mapへ ↗</a></div>':'');
       const go = () => select(i, true);
       card.onclick = go;
       card.onkeydown = e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); go(); } };
