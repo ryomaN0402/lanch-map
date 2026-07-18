@@ -29,6 +29,12 @@ const CSV_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vThmZqweEfqFTZ
 const FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSe-X8p2z_JgBws5-YAcp_zOEeCfD1zAx85aeiQIjJf-IRwSIQ/viewform";
 const SITE_SHA256 = "2ce96cfd1fe2ad80497ef1b4bc57f5ba296770983715479dd2829062158878c5";  // 空=誰でも閲覧可 / makeHash("パス")で作った値を入れると閲覧ロック
 
+// 本社の位置を地図に表示したいときに設定（空なら非表示）。
+// 緯度・経度の調べ方: Googleマップで本社を右クリック → 一番上に出る数字をコピー
+const OFFICE_NAME = "本社";
+const OFFICE_LAT  = 35.66524270210621;  // 例: 35.6640
+const OFFICE_LNG  = 139.74537491009713;  // 例: 139.7460
+
 // ジャンルの色（ここに無いジャンルは自動で色が割り当てられます）
 const GENRE_COLORS = {
   "和食系":"#C4553D", "アジア・エスニック系":"#E0972C",
@@ -126,11 +132,10 @@ const SAMPLE_PLACES = [
   .tags{ display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 6px; }
   .tag{ font-size:12px; padding:2px 9px; border-radius:999px; color:#fff; font-weight:500; }
   .tag.meta{ background:var(--paper); color:var(--muted); border:1px solid var(--line); }
-  .tag.status-want{ background:transparent; color:var(--accent-ink); border:1px dashed #D9A94A; }
-  .tag.status-rep{ background:#FBEFD2; color:var(--accent-ink); }
   .dish{ font-size:13.5px; font-weight:500; }
   .memo{ font-size:13px; color:var(--muted); margin-top:3px; line-height:1.5; }
-  .card-foot{ display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:12px; color:var(--muted); }
+  .field-label{ color:var(--accent-ink); font-weight:700; }
+  .card-foot{ display:flex; justify-content:flex-end; align-items:center; margin-top:8px; font-size:12px; }
   .card-foot a{ color:var(--accent-ink); text-decoration:none; font-weight:500; }
   .card-foot a:hover{ text-decoration:underline; }
 
@@ -139,6 +144,12 @@ const SAMPLE_PLACES = [
   .leaflet-popup-content{ font-family:inherit; margin:10px 12px; }
   .pop-name{ font-family:"Zen Maru Gothic",sans-serif; font-weight:700; font-size:15px; }
   .pop-meta{ font-size:12px; color:var(--muted); margin-top:3px; }
+
+  /* 本社マーカー */
+  .office-pin{ display:flex; align-items:center; justify-content:center; width:30px; height:30px;
+    background:var(--ink); border:3px solid #fff; border-radius:50% 50% 50% 0; transform:rotate(-45deg);
+    box-shadow:0 2px 6px rgba(0,0,0,.35); }
+  .office-pin span{ transform:rotate(45deg); font-size:14px; }
 
   /* ログイン画面（全面をおおう） */
   .login{ position:fixed; inset:0; background:var(--paper); display:flex; align-items:center; justify-content:center; padding:20px; z-index:2000; }
@@ -302,6 +313,17 @@ const SAMPLE_PLACES = [
       attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
     }).addTo(map);
 
+    // 本社マーカー（座標が設定されていれば表示）
+    if (OFFICE_LAT != null && OFFICE_LNG != null){
+      const officeIcon = L.divIcon({
+        className:'', html:'<div class="office-pin"><span>🏢</span></div>',
+        iconSize:[30,30], iconAnchor:[15,29], popupAnchor:[0,-26]
+      });
+      L.marker([OFFICE_LAT, OFFICE_LNG], { icon:officeIcon, zIndexOffset:1000 })
+        .bindPopup('<div class="pop-name">'+esc(OFFICE_NAME)+'</div>')
+        .addTo(map);
+    }
+
     $('#reloadBtn').onclick = () => location.reload();
     if (FORM_URL){ const a=$('#addBtn'); a.href=FORM_URL; a.style.display='inline-flex'; }
     $('#q').addEventListener('input', render);
@@ -392,7 +414,7 @@ const SAMPLE_PLACES = [
       m.bindPopup(
         '<div class="pop-name">'+esc(p.name)+'</div>'+
         '<div class="pop-meta">'+esc(p.genre)+'・'+esc(p.budget)+'円・徒歩'+esc(p.walk)+'分</div>'+
-        '<div class="pop-meta">'+esc(p.dish)+'</div>'
+        (p.dish?'<div class="pop-meta"><span class="field-label">おすすめ：</span>'+esc(p.dish)+'</div>':'')
       );
       m.on('click', () => select(i, false));
       m.addTo(map);
@@ -454,7 +476,6 @@ const SAMPLE_PLACES = [
       const p = PLACES[i]; shown++;
       const rate = Math.max(0, Math.min(5, p.rating|0));
       const stars = '★'.repeat(rate) + '☆'.repeat(5-rate);
-      const statusCls = p.status==='リピート' ? 'status-rep' : 'status-want';
       const card = document.createElement('div');
       card.className = 'card' + (i===selected?' selected':'');
       card.tabIndex = 0;
@@ -462,15 +483,12 @@ const SAMPLE_PLACES = [
         '<div class="card-top"><h3>'+esc(p.name)+'</h3><span class="stars">'+stars+'</span></div>'+
         '<div class="tags">'+
           '<span class="tag" style="background:'+colorOf(p.genre)+'">'+esc(p.genre)+'</span>'+
-          (p.status?'<span class="tag '+statusCls+'">'+esc(p.status)+'</span>':'')+
           (p.budget?'<span class="tag meta">'+esc(p.budget)+'円</span>':'')+
           (p.walk?'<span class="tag meta">徒歩'+esc(p.walk)+'分</span>':'')+
         '</div>'+
-        (p.dish?'<div class="dish">'+esc(p.dish)+'</div>':'')+
-        (p.memo?'<div class="memo">'+esc(p.memo)+'</div>':'')+
-        '<div class="card-foot"><span>登録：'+esc(p.by||'—')+'</span>'+
-          (p.url?'<a href="'+esc(p.url)+'" target="_blank" rel="noopener">リンク ↗</a>':'')+
-        '</div>';
+        (p.dish?'<div class="dish"><span class="field-label">おすすめ：</span>'+esc(p.dish)+'</div>':'')+
+        (p.memo?'<div class="memo"><span class="field-label">コメント：</span>'+esc(p.memo)+'</div>':'')+
+        (p.url?'<div class="card-foot"><a href="'+esc(p.url)+'" target="_blank" rel="noopener">リンク ↗</a></div>':'');
       const go = () => select(i, true);
       card.onclick = go;
       card.onkeydown = e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); go(); } };
