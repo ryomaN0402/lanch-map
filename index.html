@@ -105,6 +105,20 @@ const SAMPLE_PLACES = [
   .rating-filter .rf-clear{ font-size:12px; color:var(--muted); text-decoration:underline; cursor:pointer; margin-left:2px; }
   .rating-filter .rf-clear[hidden]{ display:none; }
 
+  /* 使い方ツアー */
+  .tour-overlay{ position:fixed; inset:0; z-index:4000; pointer-events:none; }
+  .tour-overlay[hidden]{ display:none; }
+  .tour-ring{ position:absolute; border:3px solid var(--accent); border-radius:12px;
+    box-shadow:0 0 0 4000px rgba(42,38,33,.55), 0 0 0 6px rgba(242,180,65,.35);
+    transition:top .25s, left .25s, width .25s, height .25s; pointer-events:none; }
+  .tour-tip{ position:absolute; max-width:280px; background:var(--panel); border-radius:14px; padding:16px;
+    box-shadow:0 14px 40px rgba(42,38,33,.3); pointer-events:auto; transition:top .25s, left .25s; }
+  .tour-tip .tour-step{ font-size:11px; color:var(--muted); font-weight:700; letter-spacing:.05em; }
+  .tour-tip p{ font-size:13.5px; line-height:1.6; margin:6px 0 12px; }
+  .tour-actions{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .tour-actions .btn{ padding:7px 12px; font-size:12.5px; }
+  .tour-skip{ font-size:12px; color:var(--muted); text-decoration:underline; cursor:pointer; background:none; border:0; padding:0; font-family:inherit; }
+
   .sortbox{ display:flex; align-items:center; gap:6px; }
   .sortbox label{ font-size:12px; color:var(--muted); white-space:nowrap; }
   .sortbox select{ font:inherit; font-size:13px; border:1px solid var(--line); background:var(--panel); color:var(--ink);
@@ -206,17 +220,18 @@ const SAMPLE_PLACES = [
       </svg>
       <div>
         <h1>神谷町グルメマップ</h1>
-        <div class="sub">お昼どこ行く？ 地図と一覧でさっと決める</div>
+        <div class="sub">神谷町周辺の行ったことあるお店マップ。是非参考に！（評価は完全に独断と偏見です）</div>
       </div>
     </div>
     <div class="actions">
+      <button class="btn" id="tourBtn" title="使い方を見る">使い方</button>
       <button class="btn" id="reloadBtn" title="最新の情報に更新">更新</button>
       <a class="btn primary" id="addBtn" href="#" target="_blank" rel="noopener" style="display:none">＋ お店を追加</a>
     </div>
   </div>
 
   <div class="controls">
-    <label class="search">
+    <label class="search" id="searchBox">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/>
       </svg>
@@ -224,7 +239,7 @@ const SAMPLE_PLACES = [
     </label>
     <div class="chips" id="genreChips" role="group" aria-label="ジャンルで絞り込み"></div>
 
-    <div class="rating-filter" role="group" aria-label="評価で絞り込み">
+    <div class="rating-filter" id="ratingFilterBox" role="group" aria-label="評価で絞り込み">
       <span class="rf-label">評価</span>
       <button type="button" data-r="1" aria-label="★1以上">★</button>
       <button type="button" data-r="2" aria-label="★2以上">★</button>
@@ -234,7 +249,7 @@ const SAMPLE_PLACES = [
       <span class="rf-clear" id="rfClear" hidden>クリア</span>
     </div>
 
-    <div class="sortbox">
+    <div class="sortbox" id="sortBox">
       <label for="sortSel">並び替え</label>
       <select id="sortSel">
         <option value="default">おすすめ順</option>
@@ -258,6 +273,21 @@ const SAMPLE_PLACES = [
   </section>
   <div id="map" aria-label="地図"></div>
 </main>
+
+<div id="tourOverlay" class="tour-overlay" hidden>
+  <div class="tour-ring" id="tourRing"></div>
+  <div class="tour-tip" id="tourTip">
+    <div class="tour-step" id="tourStepLabel">STEP 1 / 5</div>
+    <p id="tourText"></p>
+    <div class="tour-actions">
+      <button class="tour-skip" id="tourSkip">スキップ</button>
+      <div style="display:flex; gap:6px;">
+        <button class="btn" id="tourPrev">戻る</button>
+        <button class="btn primary" id="tourNext">次へ</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
   const $ = s => document.querySelector(s);
@@ -517,6 +547,67 @@ const SAMPLE_PLACES = [
   function showMap(){ document.body.classList.add('view-map'); document.body.classList.remove('view-list');
     $('#segMap').setAttribute('aria-pressed','true'); $('#segList').setAttribute('aria-pressed','false');
     setTimeout(() => map.invalidateSize(), 60); }
+
+  // ---- 使い方ツアー ----
+  const TOUR_STEPS = [
+    { sel:'#searchBox',      text:'ここで店名・おすすめメニュー・コメントの中からキーワード検索できます。' },
+    { sel:'#genreChips',     text:'ジャンルのタグをタップして絞り込めます（複数選択可）。右にある★は、その評価以上のお店だけを表示するフィルタです。もう一度押すか「クリア」で解除できます。' },
+    { sel:'#sortBox',        text:'並び替えで「評価が高い順」「徒歩が短い順」「予算が安い順」に切り替えられます。' },
+    { sel:'#list',           text:'カードをタップすると、地図上の対応するピンにジャンプします。スマホでは下の「一覧／地図」ボタンで表示を切り替えられます。' },
+    { sel:'#addBtn',         text:'行ったことのあるお店は「＋ お店を追加」から登録できます。フォームに入力すると、この地図に反映されます。' },
+  ];
+  let tourIndex = 0;
+  const tourOverlay = $('#tourOverlay'), tourRing = $('#tourRing'), tourTip = $('#tourTip');
+
+  function positionTour(){
+    const step = TOUR_STEPS[tourIndex];
+    const el = document.querySelector(step.sel);
+    if (!el){ tourNext_(); return; } // 要素が無ければ次へスキップ
+    const r = el.getBoundingClientRect();
+    const pad = 8;
+    const ringTop = Math.max(r.top - pad, 8);
+    const ringLeft = Math.max(r.left - pad, 8);
+    const ringW = Math.min(r.width + pad*2, window.innerWidth - 16);
+    const ringH = r.height + pad*2;
+    tourRing.style.top = ringTop + 'px';
+    tourRing.style.left = ringLeft + 'px';
+    tourRing.style.width = ringW + 'px';
+    tourRing.style.height = ringH + 'px';
+
+    $('#tourStepLabel').textContent = 'STEP ' + (tourIndex+1) + ' / ' + TOUR_STEPS.length;
+    $('#tourText').textContent = step.text;
+
+    // 吹き出しの位置：下に置けなければ上に置く。横は画面内に収める
+    const tipW = 280;
+    let top = ringTop + ringH + 12;
+    const spaceBelow = window.innerHeight - top;
+    if (spaceBelow < 160){ top = Math.max(ringTop - 150, 8); }
+    let left = Math.min(Math.max(ringLeft, 12), window.innerWidth - tipW - 12);
+    tourTip.style.top = top + 'px';
+    tourTip.style.left = left + 'px';
+
+    $('#tourPrev').style.visibility = (tourIndex===0) ? 'hidden' : 'visible';
+    $('#tourNext').textContent = (tourIndex === TOUR_STEPS.length-1) ? '完了' : '次へ';
+
+    el.scrollIntoView({ block:'nearest', behavior:'smooth' });
+  }
+  function tourNext_(){
+    if (tourIndex >= TOUR_STEPS.length-1){ endTour(); return; }
+    tourIndex++; positionTour();
+  }
+  function startTour(){
+    showList(); // カードが見える状態から開始
+    tourIndex = 0;
+    tourOverlay.hidden = false;
+    setTimeout(positionTour, 50); // レイアウト確定を待つ
+  }
+  function endTour(){ tourOverlay.hidden = true; }
+
+  $('#tourBtn').onclick = startTour;
+  $('#tourNext').onclick = tourNext_;
+  $('#tourPrev').onclick = () => { if (tourIndex>0){ tourIndex--; positionTour(); } };
+  $('#tourSkip').onclick = endTour;
+  window.addEventListener('resize', () => { if (!tourOverlay.hidden) positionTour(); });
 
   function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 </script>
